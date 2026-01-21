@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { QUESTIONS, RESULT_PROFILES } from './constants';
 import { QuestionType, QuizState, Choice, CandidateRecord } from './types';
@@ -6,7 +5,6 @@ import {
   ChevronRight, 
   ChevronLeft, 
   ShieldCheck,
-  Zap,
   User,
   Briefcase,
   Camera,
@@ -14,10 +12,11 @@ import {
   Lock,
   Database,
   Trash2,
-  ExternalLink,
   Target,
   Trophy,
-  CheckCircle2
+  CheckCircle2,
+  Download,
+  LogOut
 } from 'lucide-react';
 
 const ADMIN_CREDENTIALS = {
@@ -40,11 +39,14 @@ const App: React.FC = () => {
   const [adminPass, setAdminPass] = useState('');
   const [candidates, setCandidates] = useState<CandidateRecord[]>([]);
 
-  // Carregar candidatos do localStorage ao iniciar
   useEffect(() => {
     const saved = localStorage.getItem('percentfy_database');
     if (saved) {
-      setCandidates(JSON.parse(saved));
+      try {
+        setCandidates(JSON.parse(saved));
+      } catch (e) {
+        console.error("Erro ao carregar banco de dados", e);
+      }
     }
   }, []);
 
@@ -125,6 +127,31 @@ const App: React.FC = () => {
     }
   };
 
+  const exportCSV = () => {
+    if (candidates.length === 0) return;
+    const headers = ["ID", "Data", "Nome", "Score", "Perfil", "Experiência", "Resposta Aberta"];
+    const rows = candidates.map(c => [
+      c.id,
+      c.date,
+      c.name,
+      c.score,
+      c.profileTitle,
+      `"${c.experience.replace(/"/g, '""')}"`,
+      `"${c.openAnswer.replace(/"/g, '""')}"`
+    ]);
+    
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob(["\ufeff" + csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `candidatos_percentfy_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const deleteCandidate = (id: string) => {
     if (confirm('Deseja excluir este registro permanentemente?')) {
       const filtered = candidates.filter(c => c.id !== id);
@@ -175,7 +202,6 @@ const App: React.FC = () => {
     </div>
   );
 
-  // TELA ADMIN: PAINEL DE DADOS
   if (state.step === 'admin_panel') {
     return (
       <div className="min-h-screen bg-[#020617] p-8">
@@ -188,12 +214,20 @@ const App: React.FC = () => {
                 <h1 className="text-xl font-black uppercase tracking-tighter">Banco de Talentos Capturados</h1>
               </div>
             </div>
-            <button 
-              onClick={() => setState(prev => ({ ...prev, step: 'landing' }))}
-              className="bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest border border-slate-700"
-            >
-              Sair do Painel
-            </button>
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={exportCSV}
+                className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest border border-cyan-500/20 shadow-lg shadow-cyan-500/10 transition-all"
+              >
+                <Download size={16} /> Exportar CSV
+              </button>
+              <button 
+                onClick={() => setState(prev => ({ ...prev, step: 'landing' }))}
+                className="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-white px-6 py-3 rounded-xl font-black text-[10px] uppercase tracking-widest border border-slate-700"
+              >
+                <LogOut size={16} /> Sair
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 gap-6">
@@ -202,17 +236,20 @@ const App: React.FC = () => {
                 <p className="text-slate-500 font-bold">Nenhum candidato registrado até o momento.</p>
               </div>
             ) : (
-              candidates.map((c) => (
+              [...candidates].reverse().map((c) => (
                 <div key={c.id} className="bg-slate-900 border border-slate-800 rounded-[2rem] p-8 hover:border-cyan-500/30 transition-all group">
                   <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
                     <div className="flex-1 space-y-4">
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center text-cyan-400 font-black">
+                        <div className="w-12 h-12 bg-slate-800 rounded-full flex items-center justify-center text-cyan-400 font-black border border-slate-700">
                           {c.name.charAt(0)}
                         </div>
                         <div>
                           <h3 className="text-xl font-black text-white uppercase tracking-tight">{c.name}</h3>
                           <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest">{c.date}</p>
+                        </div>
+                        <div className="ml-auto md:ml-4 px-3 py-1 bg-cyan-500/10 border border-cyan-500/20 rounded-full">
+                          <span className="text-cyan-400 font-black text-xs">Score: {c.score}</span>
                         </div>
                       </div>
                       
@@ -229,18 +266,18 @@ const App: React.FC = () => {
                       )}
                     </div>
 
-                    <div className="md:text-right space-y-4 flex flex-col items-end">
-                      <div className="px-4 py-2 bg-slate-800 rounded-xl border border-slate-700">
+                    <div className="md:text-right space-y-4 flex flex-col items-end min-w-[200px]">
+                      <div className="w-full px-4 py-3 bg-slate-800/50 rounded-xl border border-slate-700 text-center md:text-right">
                         <p className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-1">Perfil Resultante</p>
-                        <p className="text-white font-black uppercase text-sm">{c.profileTitle}</p>
+                        <p className="text-white font-black uppercase text-xs">{c.profileTitle}</p>
                       </div>
                       
                       <button 
                         onClick={() => deleteCandidate(c.id)}
-                        className="text-red-500/40 hover:text-red-500 transition-colors p-2"
+                        className="text-red-500/40 hover:text-red-500 transition-colors p-2 flex items-center gap-2 text-[10px] font-black uppercase"
                         title="Excluir Registro"
                       >
-                        <Trash2 size={20} />
+                        <Trash2 size={16} /> Excluir
                       </button>
                     </div>
                   </div>
@@ -253,7 +290,6 @@ const App: React.FC = () => {
     );
   }
 
-  // TELA ADMIN: LOGIN
   if (state.step === 'admin_login') {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-[#020617]">
@@ -272,6 +308,7 @@ const App: React.FC = () => {
               <input 
                 type="text"
                 placeholder="Usuário"
+                autoComplete="username"
                 className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-cyan-500/50 transition-all font-bold"
                 value={adminUser}
                 onChange={(e) => setAdminUser(e.target.value)}
@@ -281,6 +318,7 @@ const App: React.FC = () => {
               <input 
                 type="password"
                 placeholder="Senha"
+                autoComplete="current-password"
                 className="w-full bg-slate-950 border border-slate-800 rounded-2xl px-6 py-4 text-white focus:outline-none focus:border-cyan-500/50 transition-all font-bold"
                 value={adminPass}
                 onChange={(e) => setAdminPass(e.target.value)}
@@ -305,7 +343,6 @@ const App: React.FC = () => {
     );
   }
 
-  // TELA FINAL (RESULTADOS)
   if (state.step === 'finished') {
     return (
       <div className="min-h-screen flex items-center justify-center p-4 bg-[#020617]">
@@ -352,14 +389,9 @@ const App: React.FC = () => {
     );
   }
 
-  // TELA DE CADASTRO
   if (state.step === 'registration') {
     return (
       <div className="min-h-screen flex items-center justify-center p-6 bg-[#020617] relative overflow-hidden">
-        <div className="absolute top-[-5%] right-[-5%] p-24 opacity-[0.01] pointer-events-none rotate-12 select-none grayscale brightness-200">
-           <PercentfyLogo className="scale-[8]" />
-        </div>
-        
         <div className="max-w-xl w-full bg-slate-900/80 backdrop-blur-md rounded-[3.5rem] p-10 md:p-14 border border-slate-800 shadow-2xl animate-in slide-in-from-bottom-8 duration-500">
           <div className="mb-10 text-center">
             <PercentfyLogo className="justify-center scale-90 mb-8" />
@@ -419,10 +451,19 @@ const App: React.FC = () => {
     );
   }
 
-  // TELA DE LANDING (INÍCIO)
   if (state.step === 'landing') {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 md:p-12 bg-[#020617] overflow-hidden relative">
+        {/* Admin floating button */}
+        <div className="absolute top-8 right-8 z-50">
+          <button 
+            onClick={() => setState(prev => ({ ...prev, step: 'admin_login' }))}
+            className="flex items-center gap-2 bg-slate-900/50 hover:bg-slate-800 border border-slate-800 hover:border-cyan-500/50 text-slate-500 hover:text-cyan-400 px-4 py-2 rounded-full transition-all text-[10px] font-black uppercase tracking-widest"
+          >
+            <Lock size={12} /> Acesso Gestor
+          </button>
+        </div>
+
         <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-cyan-600/10 blur-[150px] rounded-full"></div>
         <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-600/10 blur-[150px] rounded-full"></div>
 
@@ -432,10 +473,6 @@ const App: React.FC = () => {
               <PercentfyLogo />
               
               <div className="space-y-6">
-                <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-400 text-[10px] font-black uppercase tracking-[0.25em]">
-                  <ShieldCheck size={16} />
-                  Diagnóstico de Competência Comercial • 2025
-                </div>
                 <h1 className="text-5xl md:text-7xl lg:text-8xl font-black leading-[0.9] text-white tracking-tighter uppercase">
                   AVALIAÇÃO DE PERFIL PARA <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-cyan-200 to-blue-500">ALTA PERFORMANCE</span>
                 </h1>
@@ -476,19 +513,14 @@ const App: React.FC = () => {
         </div>
 
         <div className="mt-20 py-10 w-full flex justify-center border-t border-slate-800/50">
-          <button 
-            onClick={() => setState(prev => ({ ...prev, step: 'admin_login' }))}
-            className="flex items-center gap-2 text-slate-700 hover:text-cyan-500 transition-all text-[9px] font-black uppercase tracking-[0.3em] group"
-          >
-            <Lock size={12} className="group-hover:scale-110 transition-transform" />
-            Acesso Restrito ao Banco de Dados
-          </button>
+          <p className="text-[9px] text-slate-700 font-black uppercase tracking-[0.3em]">
+            Percentfy © 2025 • Todos os direitos reservados
+          </p>
         </div>
       </div>
     );
   }
 
-  // TELA DE QUESTÕES
   const currentQuestion = QUESTIONS[state.currentQuestionIndex];
   const progress = ((state.currentQuestionIndex + 1) / QUESTIONS.length) * 100;
 
@@ -516,10 +548,6 @@ const App: React.FC = () => {
 
         <div className="flex-1 flex flex-col justify-center px-2">
           <div className="bg-slate-900/80 backdrop-blur-md rounded-[3.5rem] p-10 md:p-14 lg:p-20 border border-slate-800 shadow-[0_50px_100px_rgba(0,0,0,0.5)] relative overflow-hidden">
-            <div className="absolute top-[-10%] right-[-10%] p-24 opacity-[0.01] pointer-events-none rotate-12 select-none grayscale brightness-200">
-               <PercentfyLogo className="scale-[8]" />
-            </div>
-
             <div className="mb-14 relative z-10 space-y-6">
                {currentQuestion.description && (
                 <div className="inline-block px-4 py-2 bg-cyan-500/10 border border-cyan-500/20 rounded-xl">
